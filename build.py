@@ -6,6 +6,7 @@ import argparse
 import os
 import json
 from lxml import etree
+import json
 
 class Builder:
   def __init__(self):
@@ -50,13 +51,21 @@ class Builder:
     for xpi in glob.glob('*.xpi'):
       os.remove(xpi)
 
+    assets = ['chrome.manifest', 'bootstrap.js', 'install.rdf', 'manifest.json']
+    assets += glob.glob('resource/**/*', recursive=True)
+    assets += glob.glob('chrome/**/*', recursive=True)
     with zipfile.ZipFile(self.xpi, 'w', zipfile.ZIP_DEFLATED) as xpi:
-      for file in ['chrome.manifest', 'bootstrap.js', 'install.rdf'] + glob.glob('resource/**/*', recursive=True) + glob.glob('chrome/**/*', recursive=True):
-
+      for file in assets:
         if file == 'install.rdf':
           rdf = etree.parse('install.rdf')
           rdf.find('.//em:version', namespaces=self.namespaces(rdf)).text = self.version
           xpi.writestr(file, etree.tostring(rdf, pretty_print=True))
+
+        elif file == 'manifest.json':
+          with open(file) as f:
+            manifest = json.load(f)
+          manifest['version'] = self.version
+          xpi.writestr(file, json.dumps(manifest))
 
         elif file == 'chrome/locale/en-US/about.dtd':
           with open('chrome/locale/en-US/about.dtd') as f:
