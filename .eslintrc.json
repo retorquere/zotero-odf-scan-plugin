@@ -22,9 +22,6 @@
         "no-constant-condition": ["off"],
         "for-direction": ["off"]
     },
-    "plugins": [
-      "local"
-    ],
     "globals": {
       "Zotero_File_Interface_Bibliography": false,
       "Components": false,

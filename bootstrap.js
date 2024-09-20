@@ -1,39 +1,41 @@
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
-Cu.import('resource://gre/modules/Services.jsm');
+const { classes: Cc, interfaces: Ci, utils: Cu } = Components
+Cu.import('resource://gre/modules/Services.jsm')
 
-const PREF_BRANCH = 'extensions.zotero.';
+const PREF_BRANCH = 'extensions.zotero.'
 const PREFS = {
-  'ODFScan.rtf.lastInputFiletortf':'',
-  'ODFScan.rtf.lastOutputFiletortf':'',
-  'ODFScan.odf.lastInputFiletocitations':'',
-  'ODFScan.odf.lastOutputFiletocitations':'',
-  'ODFScan.odf.lastInputFiletomarkers':'',
-  'ODFScan.odf.lastOutputFiletomarkers':'',
-  'ODFScan.fileType':'odf',
-  'ODFScan.outputMode':'tocitations',
-  'translators.ODFScan.useZoteroSelect':false,
-  'translators.ODFScan.includeTitle':false
-};
+  'ODFScan.rtf.lastInputFiletortf': '',
+  'ODFScan.rtf.lastOutputFiletortf': '',
+  'ODFScan.odf.lastInputFiletocitations': '',
+  'ODFScan.odf.lastOutputFiletocitations': '',
+  'ODFScan.odf.lastInputFiletomarkers': '',
+  'ODFScan.odf.lastOutputFiletomarkers': '',
+  'ODFScan.fileType': 'odf',
+  'ODFScan.outputMode': 'tocitations',
+  'translators.ODFScan.useZoteroSelect': false,
+  'translators.ODFScan.includeTitle': false,
+}
 
-const consoleService = Components.classes['@mozilla.org/consoleservice;1'].getService(Components.interfaces.nsIConsoleService);
+const consoleService = Components.classes[
+  '@mozilla.org/consoleservice;1'
+].getService(Components.interfaces.nsIConsoleService)
 function logMessage(msg) {
-  consoleService.logStringMessage('ODF Scan: ' + msg);
+  consoleService.logStringMessage('ODF Scan: ' + msg)
 }
 
 function setDefaultPrefs() {
-  let branch = Services.prefs.getDefaultBranch(PREF_BRANCH);
+  let branch = Services.prefs.getDefaultBranch(PREF_BRANCH)
   for (let key in PREFS) {
-    let val = PREFS[key];
+    let val = PREFS[key]
     switch (typeof val) {
-    case 'boolean':
-      branch.setBoolPref(key, val);
-      break;
-    case 'number':
-      branch.setIntPref(key, val);
-      break;
-    case 'string':
-      branch.setCharPref(key, val);
-      break;
+      case 'boolean':
+        branch.setBoolPref(key, val)
+        break
+      case 'number':
+        branch.setIntPref(key, val)
+        break
+      case 'string':
+        branch.setCharPref(key, val)
+        break
     }
   }
 }
@@ -47,153 +49,162 @@ function setDefaultPrefs() {
 function watchWindows(callback) {
   // Travelling object used to store original attribute values
   // needed for uninstall
-  let tabCallbackInfo = {};
+  let tabCallbackInfo = {}
   // Wrap the callback in a function that ignores failures
   function watcher(window) {
     try {
       // Now that the window has loaded, only handle browser windows
-      let {documentElement} = window.document;
-      if (documentElement.getAttribute('windowtype') == 'navigator:browser'
-    || documentElement.getAttribute('windowtype') === 'zotero:basicViewer') {
-        let menuElem = window.document.getElementById('menu_rtfScan');
-        if (!menuElem) return;
-        let cmdElem = window.document.getElementById('cmd_zotero_rtfScan');
-        let windowUtils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-          .getInterface(Components.interfaces.nsIDOMWindowUtils);
-        let windowID = windowUtils.outerWindowID;
+      let { documentElement } = window.document
+      if (
+        documentElement.getAttribute('windowtype') == 'navigator:browser' ||
+        documentElement.getAttribute('windowtype') === 'zotero:basicViewer'
+      ) {
+        let menuElem = window.document.getElementById('menu_rtfScan')
+        if (!menuElem) return
+        let cmdElem = window.document.getElementById('cmd_zotero_rtfScan')
+        let windowUtils = window
+          .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+          .getInterface(Components.interfaces.nsIDOMWindowUtils)
+        let windowID = windowUtils.outerWindowID
         tabCallbackInfo[windowID] = {
-          oldLabel:menuElem.getAttribute('label'),
-          oldRtfScanCommand:cmdElem.getAttribute('oncommand'),
-          children: {}
-        };
+          oldLabel: menuElem.getAttribute('label'),
+          oldRtfScanCommand: cmdElem.getAttribute('oncommand'),
+          children: {},
+        }
         if (window.gBrowser && window.gBrowser.tabContainer) {
-
-          let tabContainer = window.gBrowser.tabContainer;
+          let tabContainer = window.gBrowser.tabContainer
 
           // Tab monitor callback wrapper. Sets aside enough information
           // to shut down listeners on plugin uninstall or disable. Tabs in
           // which Zotero/MLZ are not detected are sniffed at, then ignored
-          function tabSelect (event) {
-
+          function tabSelect(event) {
             // Capture a pointer to this tab window for use in the setTimeout,
             // and make a note of the tab windowID (needed for uninstall)
-            let contentWindow = window.content;
-            let windowUtils = contentWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-              .getInterface(Components.interfaces.nsIDOMWindowUtils);
-            let contentWindowID = windowUtils.outerWindowID;
+            let contentWindow = window.content
+            let windowUtils = contentWindow
+              .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+              .getInterface(Components.interfaces.nsIDOMWindowUtils)
+            let contentWindowID = windowUtils.outerWindowID
 
             // Only once for per tab in this browser window
-            if (tabCallbackInfo[windowID].children[contentWindowID]) return;
+            if (tabCallbackInfo[windowID].children[contentWindowID]) return
 
             // Allow a little time for the window to start. If recognition
             // fails on tab open, a later select will still pick it up
-            window.setTimeout(function(contentWindow,tabCallbackInfo,windowID,contentWindowID,callback) {
-              let menuElem = contentWindow.document.getElementById('menu_rtfScan');
-              if (!menuElem) return;
-              // Children are Zotero tab instances and only one can exist
-              for (let key in tabCallbackInfo[windowID].children) {
-                delete tabCallbackInfo[windowID].children[key];
-              }
-              tabCallbackInfo[windowID].children[contentWindowID] = true;
-              callback(contentWindow);
-            }, 1000, contentWindow,tabCallbackInfo,windowID,contentWindowID,callback);
+            window.setTimeout((contentWindow, tabCallbackInfo, windowID, contentWindowID, callback) => {
+                let menuElem =
+                  contentWindow.document.getElementById('menu_rtfScan')
+                if (!menuElem) return
+                // Children are Zotero tab instances and only one can exist
+                for (let key in tabCallbackInfo[windowID].children) {
+                  delete tabCallbackInfo[windowID].children[key]
+                }
+                tabCallbackInfo[windowID].children[contentWindowID] = true
+                callback(contentWindow)
+              },
+              1000,
+              contentWindow,
+              tabCallbackInfo,
+              windowID,
+              contentWindowID,
+              callback
+            )
           }
 
           // Modify tabs
           // tabOpen event implies tabSelect, so this is enough
-          tabContainer.addEventListener('TabSelect', tabSelect, false);
+          tabContainer.addEventListener('TabSelect', tabSelect, false)
 
           // Function to remove listener on uninstall
           tabCallbackInfo[windowID].removeListener = function () {
-            tabContainer.removeEventListener('TabSelect', tabSelect);
-          };
+            tabContainer.removeEventListener('TabSelect', tabSelect)
+          }
         }
 
         // Modify the chrome window itself
-        callback(window);
+        callback(window)
       }
-    }
-    catch (ex) {
-      dump('ERROR (rtf-odf-scan-for-zotero): in watcher(): '+ex);
+    } catch (ex) {
+      dump('ERROR (rtf-odf-scan-for-zotero): in watcher(): ' + ex)
     }
   }
 
   // Wait for the window to finish loading before running the callback
   function runOnLoad(window) {
-  // Listen for one load event before checking the window type
-  // ODF Scan: run until we find both the main window and a tab ...
-    window.addEventListener('load', function runOnce() {
-      window.removeEventListener('load', runOnce, false);
-      watcher(window);
-    }, false);
+    // Listen for one load event before checking the window type
+    // ODF Scan: run until we find both the main window and a tab ...
+    window.addEventListener(
+      'load',
+      function runOnce() {
+        window.removeEventListener('load', runOnce, false)
+        watcher(window)
+      },
+      false
+    )
   }
 
   // Add functionality to existing windows
-  let windows = Services.wm.getEnumerator(null);
+  let windows = Services.wm.getEnumerator(null)
   while (windows.hasMoreElements()) {
-  // Only run the watcher immediately if the window is completely loaded
-    let window = windows.getNext();
+    // Only run the watcher immediately if the window is completely loaded
+    let window = windows.getNext()
     if (window.document.readyState == 'complete') {
-      watcher(window);
+      watcher(window)
     } else {
       // Wait for the window to load before continuing
-      runOnLoad(window);
+      runOnLoad(window)
     }
   }
 
   // Watch for new browser windows opening then wait for it to load
   function windowWatcher(subject, topic) {
-    if (topic == 'domwindowopened')
-      runOnLoad(subject);
+    if (topic == 'domwindowopened') runOnLoad(subject)
   }
-  Services.ww.registerNotification(windowWatcher);
+  Services.ww.registerNotification(windowWatcher)
 
   // Make sure to stop watching for windows if we're unloading
-  unload(function() {
-
-    Services.ww.unregisterNotification(windowWatcher);
+  unload(function () {
+    Services.ww.unregisterNotification(windowWatcher)
 
     // DEBUG: This isn't currently called when the plugin is unloaded
     function removeMenuItem(win) {
-      let menuElem = win.document.getElementById('menu_odfScan');
-      menuElem.parentNode.removeChild(menuElem);
+      let menuElem = win.document.getElementById('menu_odfScan')
+      menuElem.parentNode.removeChild(menuElem)
     }
 
     try {
-      let someWindow = Services.wm.getMostRecentWindow(null);
-      let windowUtils = someWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-        .getInterface(Components.interfaces.nsIDOMWindowUtils);
+      let someWindow = Services.wm.getMostRecentWindow(null)
+      let windowUtils = someWindow
+        .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+        .getInterface(Components.interfaces.nsIDOMWindowUtils)
       for (let windowID in tabCallbackInfo) {
-
         // Get our main window
-        let win = windowUtils.getOuterWindowWithId(parseInt(windowID,10));
-        if (!win) continue;
+        let win = windowUtils.getOuterWindowWithId(parseInt(windowID, 10))
+        if (!win) continue
 
         // Remove listener
-        tabCallbackInfo[windowID].removeListener();
+        tabCallbackInfo[windowID].removeListener()
 
         // Remove menu item
-        removeMenuItem(win);
+        removeMenuItem(win)
 
         // Tick through the affected child tabs of this browser window
         // restoring behaviour there too
         for (let contentWindowID in tabCallbackInfo[windowID].children) {
-
           // Get content window
-          let contentWin = windowUtils.getOuterWindowWithId(parseInt(contentWindowID,10));
-          if (!contentWin) continue;
+          let contentWin = windowUtils.getOuterWindowWithId(parseInt(contentWindowID, 10))
+          if (!contentWin) continue
 
           // Restore old behaviour
-          removeMenuItem(contentWin);
+          removeMenuItem(contentWin)
         }
       }
     } catch (e) {
-      dump('ERROR (rtf-odf-scan-for-zotero): in unload(): '+e+'\n');
+      dump(`ERROR (rtf-odf-scan-for-zotero): in unload(): ${e}\n`)
     }
-    tabCallbackInfo = {};
-  });
+    tabCallbackInfo = {}
+  })
 }
-
 
 /**
  * Save callbacks to run when unloading. Optionally scope the callback to a
@@ -212,61 +223,63 @@ function watchWindows(callback) {
  */
 function unload(callback, container) {
   // Initialize the array of unloaders on the first usage
-  let unloaders = unload.unloaders;
-  if (unloaders == null)
-    unloaders = unload.unloaders = [];
+  let unloaders = unload.unloaders
+  if (unloaders == null) unloaders = unload.unloaders = []
 
   // Calling with no arguments runs all the unloader callbacks
   if (callback == null) {
-    unloaders.slice().forEach(function(unloader) { unloader(); });
-    unloaders.length = 0;
-    return;
+    unloaders.slice().forEach(function (unloader) {
+      unloader()
+    })
+    unloaders.length = 0
+    return
   }
 
   // The callback is bound to the lifetime of the container if we have one
   if (container != null) {
-  // Remove the unloader when the container unloads
-    container.addEventListener('unload', removeUnloader, false);
+    // Remove the unloader when the container unloads
+    container.addEventListener('unload', removeUnloader, false)
 
     // Wrap the callback to additionally remove the unload listener
-    let origCallback = callback;
-    callback = function() {
-      container.removeEventListener('unload', removeUnloader, false);
-      let tabContainer = container.gBrowser.tabContainer;
-      tabContainer.removeEventListener('TabSelect', container.tabSelect);
-      origCallback();
-    };
+    let origCallback = callback
+    callback = function () {
+      container.removeEventListener('unload', removeUnloader, false)
+      let tabContainer = container.gBrowser.tabContainer
+      tabContainer.removeEventListener('TabSelect', container.tabSelect)
+      origCallback()
+    }
   }
 
   // Wrap the callback in a function that ignores failures
   function unloader() {
     try {
-      callback();
-    }
-    catch (ex) {}
+      callback()
+    } catch (ex) {}
   }
-  unloaders.push(unloader);
+  unloaders.push(unloader)
 
   // Provide a way to remove the unloader
   function removeUnloader() {
-    let index = unloaders.indexOf(unloader);
-    if (index != -1)
-      unloaders.splice(index, 1);
+    let index = unloaders.indexOf(unloader)
+    if (index != -1) unloaders.splice(index, 1)
   }
-  return removeUnloader;
+  return removeUnloader
 }
 
 function addMenuItem(window) {
   let menu = window.document.getElementById('menu_ToolsPopup')
-  let rtfMenuElem = window.document.getElementById('menu_rtfScan');
-  let odfMenuElem = window.document.createElement('menuitem');
-  odfMenuElem.id = 'menu_odfScan';
-  odfMenuElem.setAttribute('label', 'ODF Scan');
-  odfMenuElem.setAttribute('oncommand', 'window.openDialog('chrome://rtf-odf-scan-for-zotero/content/rtfScan.xul', 'odfScan', 'chrome,centerscreen')');
-  menu.insertBefore(odfMenuElem, rtfMenuElem.nextSibling);
+  let rtfMenuElem = window.document.getElementById('menu_rtfScan')
+  let odfMenuElem = window.document.createElement('menuitem')
+  odfMenuElem.id = 'menu_odfScan'
+  odfMenuElem.setAttribute('label', 'ODF Scan')
+  odfMenuElem.setAttribute(
+    'oncommand',
+    'window.openDialog("chrome://rtf-odf-scan-for-zotero/content/rtfScan.xul", "odfScan", "chrome,centerscreen")'
+  )
+  menu.insertBefore(odfMenuElem, rtfMenuElem.nextSibling)
 }
 
-let zoteroReady = undefined
+let zoteroReady
 async function awaitZotero() {
   if (typeof zoteroReady === 'boolean') return
   zoteroReady = false
@@ -282,35 +295,43 @@ async function awaitZotero() {
 }
 
 async function installTranslator() {
-  logMessage('installing ODF scan translator');
-  const header = Zotero.File.getContentsFromURL('resource://rtf-odf-scan-for-zotero/translators/Scannable%20Cite.json')
-  const code = Zotero.File.getContentsFromURL('resource://rtf-odf-scan-for-zotero/translators/Scannable%20Cite.js')
+  logMessage('installing ODF scan translator')
+  const header = Zotero.File.getContentsFromURL(
+    'resource://rtf-odf-scan-for-zotero/translators/Scannable%20Cite.json',
+  )
+  const code = Zotero.File.getContentsFromURL(
+    'resource://rtf-odf-scan-for-zotero/translators/Scannable%20Cite.js',
+  )
   try {
     await Zotero.Translators.save(header, code)
     Zotero.Translators.reinit()
     logMessage('translator installed')
-  }
-  catch (err) {
+  } catch (err) {
     logMessage('translator install failed: ' + err)
   }
 }
 
 let chromeHandle
-export async function startup({ resourceURI, rootURI = resourceURI.spec }, reason) {
-  const aomStartup = Cc['@mozilla.org/addons/addon-manager-startup;1'].getService(Ci.amIAddonManagerStartup)
-  const manifestURI = Services.io.newURI(`${ rootURI }manifest.json`)
+export async function startup(
+  { resourceURI, rootURI = resourceURI.spec },
+  reason,
+) {
+  const aomStartup = Cc[
+    '@mozilla.org/addons/addon-manager-startup;1'
+  ].getService(Ci.amIAddonManagerStartup)
+  const manifestURI = Services.io.newURI(`${rootURI}manifest.json`)
   chromeHandle = aomStartup.registerChrome(manifestURI, [
-    [ 'content', 'zotero-better-bibtex', 'content/'                  ],
-    [ 'locale' , 'zotero-better-bibtex', 'en-US'   , 'locale/en-US/' ],
-    [ 'locale' , 'zotero-better-bibtex', 'fr-FR'   , 'locale/fr-FR/' ],
-    [ 'locale' , 'zotero-better-bibtex', 'pt-BR'   , 'locale/pt-BR/' ],
-    [ 'locale' , 'zotero-better-bibtex', 'zh-CN'   , 'locale/zh-CN/' ],
-    [ 'locale' , 'zotero-better-bibtex', 'it-IT'   , 'locale/it-IT/' ]
+    ['content', 'zotero-better-bibtex', 'content/'],
+    ['locale', 'zotero-better-bibtex', 'en-US', 'locale/en-US/'],
+    ['locale', 'zotero-better-bibtex', 'fr-FR', 'locale/fr-FR/'],
+    ['locale', 'zotero-better-bibtex', 'pt-BR', 'locale/pt-BR/'],
+    ['locale', 'zotero-better-bibtex', 'zh-CN', 'locale/zh-CN/'],
+    ['locale', 'zotero-better-bibtex', 'it-IT', 'locale/it-IT/'],
   ])
 
   // Shift all open and new browser windows
-  setDefaultPrefs();
-  watchWindows(addMenuItem);
+  setDefaultPrefs()
+  watchWindows(addMenuItem)
 }
 
 /**
@@ -322,7 +343,7 @@ function shutdown(data, reason) {
     chromeHandle = undefined
   }
   // Clean up with unloaders when we're deactivating
-  if (reason != APP_SHUTDOWN) unload();
+  if (reason != APP_SHUTDOWN) unload()
 }
 
 /**
