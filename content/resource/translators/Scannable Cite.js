@@ -1,20 +1,3 @@
-{
-	"translatorID": "248bebf1-46ab-4067-9f93-ec3d2960d0cd",
-	"label": "Scannable Cite",
-	"creator": "Scott Campbell, Avram Lyon, Nathan Schneider, Sebastian Karcher, Frank Bennett",
-	"target": "html",
-	"minVersion": "3.0",
-	"maxVersion": "",
-	"priority": 100,
-	"displayOptions": {
-		"exportCharset": "UTF-8"
-	},
-	"inRepository": true,
-	"translatorType": 2,
-	"browserSupport": "",
-	"lastUpdated": "2013-04-16 11:10:08"
-}
-
 // legal types are weird
 const LEGAL_TYPES = ["bill","case","gazette","hearing","patent","regulation","statute","treaty"];
 const Mem = function (item) {
