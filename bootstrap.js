@@ -15,11 +15,8 @@ const PREFS = {
   'translators.ODFScan.includeTitle': false,
 }
 
-const consoleService = Components.classes[
-  '@mozilla.org/consoleservice;1'
-].getService(Components.interfaces.nsIConsoleService)
 function logMessage(msg) {
-  consoleService.logStringMessage('ODF Scan: ' + msg)
+  Zotero.debug(`ODF Scan: ${msg}`)
 }
 
 function setDefaultPrefs() {
@@ -296,12 +293,8 @@ async function awaitZotero() {
 
 async function installTranslator() {
   logMessage('installing ODF scan translator')
-  const header = Zotero.File.getContentsFromURL(
-    'resource://rtf-odf-scan-for-zotero/translators/Scannable%20Cite.json',
-  )
-  const code = Zotero.File.getContentsFromURL(
-    'resource://rtf-odf-scan-for-zotero/translators/Scannable%20Cite.js',
-  )
+  const header = Zotero.File.getContentsFromURL('resource://rtf-odf-scan-for-zotero/translators/Scannable%20Cite.json')
+  const code = Zotero.File.getContentsFromURL( 'resource://rtf-odf-scan-for-zotero/translators/Scannable%20Cite.js')
   try {
     await Zotero.Translators.save(header, code)
     Zotero.Translators.reinit()
@@ -312,13 +305,9 @@ async function installTranslator() {
 }
 
 let chromeHandle
-export async function startup(
-  { resourceURI, rootURI = resourceURI.spec },
-  reason,
-) {
-  const aomStartup = Cc[
-    '@mozilla.org/addons/addon-manager-startup;1'
-  ].getService(Ci.amIAddonManagerStartup)
+export async function startup({ resourceURI, rootURI = resourceURI.spec }) {
+  await awaitZotero()
+  const aomStartup = Cc['@mozilla.org/addons/addon-manager-startup;1'].getService(Ci.amIAddonManagerStartup)
   const manifestURI = Services.io.newURI(`${rootURI}manifest.json`)
   chromeHandle = aomStartup.registerChrome(manifestURI, [
     ['content', 'zotero-better-bibtex', 'content/'],
@@ -350,7 +339,7 @@ function shutdown(data, reason) {
  * Handle the add-on being installed
  */
 async function install(data, reason) {
-  await awaitZotero
+  await awaitZotero()
   await installTranslator()
 }
 
