@@ -52,8 +52,8 @@ class Builder:
       os.remove(xpi)
 
     assets = ['chrome.manifest', 'bootstrap.js', 'install.rdf', 'manifest.json']
-    assets += glob.glob('resource/**/*', recursive=True)
-    assets += glob.glob('chrome/**/*', recursive=True)
+    assets += glob.glob('content/**/*', recursive=True)
+    assets += glob.glob('locale/**/*', recursive=True)
     with zipfile.ZipFile(self.xpi, 'w', zipfile.ZIP_DEFLATED) as xpi:
       for file in assets:
         if file == 'install.rdf':
