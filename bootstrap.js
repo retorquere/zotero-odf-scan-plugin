@@ -293,14 +293,14 @@ async function awaitZotero() {
 
 async function installTranslator() {
   logMessage('installing ODF scan translator')
-  const header = Zotero.File.getContentsFromURL('resource://rtf-odf-scan-for-zotero/translators/Scannable%20Cite.json')
-  const code = Zotero.File.getContentsFromURL( 'resource://rtf-odf-scan-for-zotero/translators/Scannable%20Cite.js')
+  const header = Zotero.File.getContentsFromURL('chrome://rtf-odf-scan-for-zotero/content/translators/Scannable%20Cite.json')
+  const code = Zotero.File.getContentsFromURL( 'chrome://rtf-odf-scan-for-zotero/content/translators/Scannable%20Cite.js')
   try {
     await Zotero.Translators.save(header, code)
     Zotero.Translators.reinit()
     logMessage('translator installed')
   } catch (err) {
-    logMessage('translator install failed: ' + err)
+    logMessage(`translator install failed: ${err}`)
   }
 }
 
