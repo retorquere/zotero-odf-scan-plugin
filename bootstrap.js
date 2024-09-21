@@ -56,70 +56,6 @@ function watchWindows(callback) {
         documentElement.getAttribute('windowtype') == 'navigator:browser' ||
         documentElement.getAttribute('windowtype') === 'zotero:basicViewer'
       ) {
-        let menuElem = window.document.getElementById('menu_rtfScan')
-        if (!menuElem) return
-        let cmdElem = window.document.getElementById('cmd_zotero_rtfScan')
-        let windowUtils = window
-          .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-          .getInterface(Components.interfaces.nsIDOMWindowUtils)
-        let windowID = windowUtils.outerWindowID
-        tabCallbackInfo[windowID] = {
-          oldLabel: menuElem.getAttribute('label'),
-          oldRtfScanCommand: cmdElem.getAttribute('oncommand'),
-          children: {},
-        }
-        if (window.gBrowser && window.gBrowser.tabContainer) {
-          let tabContainer = window.gBrowser.tabContainer
-
-          // Tab monitor callback wrapper. Sets aside enough information
-          // to shut down listeners on plugin uninstall or disable. Tabs in
-          // which Zotero/MLZ are not detected are sniffed at, then ignored
-          function tabSelect(event) {
-            // Capture a pointer to this tab window for use in the setTimeout,
-            // and make a note of the tab windowID (needed for uninstall)
-            let contentWindow = window.content
-            let windowUtils = contentWindow
-              .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-              .getInterface(Components.interfaces.nsIDOMWindowUtils)
-            let contentWindowID = windowUtils.outerWindowID
-
-            // Only once for per tab in this browser window
-            if (tabCallbackInfo[windowID].children[contentWindowID]) return
-
-            // Allow a little time for the window to start. If recognition
-            // fails on tab open, a later select will still pick it up
-            window.setTimeout((contentWindow, tabCallbackInfo, windowID, contentWindowID, callback) => {
-                let menuElem =
-                  contentWindow.document.getElementById('menu_rtfScan')
-                if (!menuElem) return
-                // Children are Zotero tab instances and only one can exist
-                for (let key in tabCallbackInfo[windowID].children) {
-                  delete tabCallbackInfo[windowID].children[key]
-                }
-                tabCallbackInfo[windowID].children[contentWindowID] = true
-                callback(contentWindow)
-              },
-              1000,
-              contentWindow,
-              tabCallbackInfo,
-              windowID,
-              contentWindowID,
-              callback
-            )
-          }
-
-          // Modify tabs
-          // tabOpen event implies tabSelect, so this is enough
-          tabContainer.addEventListener('TabSelect', tabSelect, false)
-
-          // Function to remove listener on uninstall
-          tabCallbackInfo[windowID].removeListener = function () {
-            tabContainer.removeEventListener('TabSelect', tabSelect)
-          }
-        }
-
-        // Modify the chrome window itself
-        callback(window)
       }
     } catch (ex) {
       dump('ERROR (rtf-odf-scan-for-zotero): in watcher(): ' + ex)
@@ -347,3 +283,69 @@ async function install(data, reason) {
  * Handle the add-on being uninstalled
  */
 function uninstall(data, reason) {}
+
+function onMainWindowLoad(win) {
+  let menuElem = win.document.getElementById('menu_rtfScan')
+  let cmdElem = win.document.getElementById('cmd_zotero_rtfScan')
+  let windowUtils = window
+    .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+    .getInterface(Components.interfaces.nsIDOMWindowUtils)
+  let windowID = windowUtils.outerWindowID
+  tabCallbackInfo[windowID] = {
+    oldLabel: menuElem.getAttribute('label'),
+    oldRtfScanCommand: cmdElem.getAttribute('oncommand'),
+    children: {},
+  }
+  if (win.gBrowser && win.gBrowser.tabContainer) {
+    let tabContainer = win.gBrowser.tabContainer
+
+    // Tab monitor callback wrapper. Sets aside enough information
+    // to shut down listeners on plugin uninstall or disable. Tabs in
+    // which Zotero/MLZ are not detected are sniffed at, then ignored
+    function tabSelect(event) {
+      // Capture a pointer to this tab window for use in the setTimeout,
+      // and make a note of the tab windowID (needed for uninstall)
+      let contentWindow = win.content
+      let windowUtils = contentWindow
+        .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+        .getInterface(Components.interfaces.nsIDOMWindowUtils)
+      let contentWindowID = windowUtils.outerWindowID
+
+      // Only once for per tab in this browser window
+      if (tabCallbackInfo[windowID].children[contentWindowID]) return
+
+      // Allow a little time for the window to start. If recognition
+      // fails on tab open, a later select will still pick it up
+      win.setTimeout((contentWindow, tabCallbackInfo, windowID, contentWindowID, callback) => {
+          let menuElem =
+            contentwin.document.getElementById('menu_rtfScan')
+          if (!menuElem) return
+          // Children are Zotero tab instances and only one can exist
+          for (let key in tabCallbackInfo[windowID].children) {
+            delete tabCallbackInfo[windowID].children[key]
+          }
+          tabCallbackInfo[windowID].children[contentWindowID] = true
+          callback(contentWindow)
+        },
+        1000,
+        contentWindow,
+        tabCallbackInfo,
+        windowID,
+        contentWindowID,
+        callback
+      )
+    }
+
+    // Modify tabs
+    // tabOpen event implies tabSelect, so this is enough
+    tabContainer.addEventListener('TabSelect', tabSelect, false)
+
+    // Function to remove listener on uninstall
+    tabCallbackInfo[windowID].removeListener = function () {
+      tabContainer.removeEventListener('TabSelect', tabSelect)
+    }
+  }
+
+  // Modify the chrome window itself
+  callback(window)
+}
